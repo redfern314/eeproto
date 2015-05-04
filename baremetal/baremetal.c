@@ -8,22 +8,43 @@
 
 #define redLED          5
 #define greenLED        6
+#define zerotol         18
+#define matchlen        5
+
+uint8_t bitstring[] = {1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0}; // Derek
+//uint8_t bitstring[] = {1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0}; // Cameron
+uint8_t captured[matchlen];
+volatile uint8_t matching = 1;
+volatile uint8_t current = 0;
+volatile uint8_t zeroes = 0;
 
 void blinkLED(int LED) {
     PORTB ^= (1 << LED);
 }
 
-// ISR(INT3_vect) {
-//     PORTD ^= _BV(PD6);
-// }
-
 ISR(TIMER1_CAPT_vect) {
     uint16_t icr = ICR1;
-    if(icr > 18) {          // 18 ticks = about 13.9kHz
-        blinkLED(redLED);
-        PORTD |= _BV(PD6);
+    current++;
+    if(icr > 18 && current <= matchlen) {          // 18 ticks = about 13.9kHz
+        zeroes = 0;
+        if (bitstring[current] != 1) {
+            matching = 0;
+        }
     } else {
-        PORTD &= ~_BV(PD6);
+        zeroes++;
+        if (zeroes > zerotol) {
+            current = 0;
+            matching = 1;
+            blinkLED(greenLED);
+        } else if (current <= matchlen) {
+            if (bitstring[current] != 0) {
+                matching = 0;
+            }
+        }
+    }
+    if (current == matchlen && matching) {
+        // success!
+        blinkLED(redLED);
     }
     TCNT1 = 0;
 }
@@ -43,12 +64,7 @@ int main() {
     TCCR1B |= _BV(ICNC1) | _BV(ICES1) | _BV(CS11) | _BV(CS10);
     TIMSK1 |= _BV(ICIE1);
 
-    // EICRA |= _BV(ISC30) | _BV(ISC31);           // trigger on rising edge
-    // EIMSK |= _BV(INT3);                         // enable interrupt 3
-
     sei();
-
-    // blinkLED(redLED);
 
     while (1) {
 
